@@ -158,8 +158,9 @@ public class QueueGenerator {
         if (loc != null) {
             AsyncHandler.sync(() -> {
                 //BetterRTP.debug("Queued up a new position, attempts " + reQueueData.attempts);
-                PaperLib.getChunkAtAsync(loc)
-                        .thenAccept(v -> {
+                // Impeerium: read the destination's blocks on the thread that owns them (Folia region).
+                AsyncHandler.chunkAt(loc)
+                        .thenAccept(v -> AsyncHandler.syncAtLocation(loc, () -> {
                             Location safeLoc = RandomLocation.getSafeLocation(
                                     HelperRTP.getWorldType(rtpWorld.getWorld()),
                                     loc.getWorld(),
@@ -186,7 +187,7 @@ public class QueueGenerator {
                                 });
                             } else
                                 queueGenerator(reQueueData);
-                        });
+                        }));
             });
         } else {
             BetterRTP.debug("Queue position wasn't able to generate a location!");

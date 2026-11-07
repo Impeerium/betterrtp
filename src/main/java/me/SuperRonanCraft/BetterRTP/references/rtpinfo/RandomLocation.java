@@ -1,6 +1,7 @@
 package me.SuperRonanCraft.BetterRTP.references.rtpinfo;
 
 import io.papermc.lib.PaperLib;
+import me.SuperRonanCraft.BetterRTP.versions.AsyncHandler;
 import me.SuperRonanCraft.BetterRTP.BetterRTP;
 import me.SuperRonanCraft.BetterRTP.references.rtpinfo.worlds.RTPWorld;
 import me.SuperRonanCraft.BetterRTP.references.rtpinfo.worlds.WORLD_TYPE;
@@ -155,8 +156,10 @@ public class RandomLocation {
     }
 
     private static void cacheChunkAt(World world, int goal, int start, int xat, int zat) {
-        CompletableFuture<Chunk> task = PaperLib.getChunkAtAsync(new Location(world, xat * 16, 0, zat * 16));
-        task.thenAccept(chunk -> {
+        Location at = new Location(world, xat * 16, 0, zat * 16);
+        CompletableFuture<Chunk> task = AsyncHandler.chunkAt(at);
+        // Impeerium: snapshots belong to the chunk's own thread on Folia.
+        task.thenAccept(chunk -> AsyncHandler.syncAtLocation(at, () -> {
             try {
                 ChunkSnapshot snapshot = chunk.getChunkSnapshot(true, true, false);
                 int maxy = snapshot.getHighestBlockYAt(8, 8);
@@ -168,7 +171,8 @@ public class RandomLocation {
                 throw new RuntimeException();
                 //BetterRTP.getInstance().getLogger().info("Tried Adding " + chunk.getX() + " " + chunk.getZ());
             }
-        }).thenRun(() -> cacheTask(world, goal, start, xat, zat));
+            cacheTask(world, goal, start, xat, zat);
+        }));
     }
 
 }

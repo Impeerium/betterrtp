@@ -2,6 +2,7 @@ package me.SuperRonanCraft.BetterRTP.player.rtp;
 
 import java.util.Arrays;
 
+import me.SuperRonanCraft.BetterRTP.versions.AsyncHandler;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -52,7 +53,8 @@ public class RTPTeleport {
             RTP_TeleportEvent event = new RTP_TeleportEvent(p, location, wPlayer.getWorldtype());
             getPl().getServer().getPluginManager().callEvent(event);
             Location loc = event.getLocation();
-            PaperLib.teleportAsync(p, loc).thenRun(new BukkitRunnable() { //Async teleport
+            // Impeerium: effects and messages after the teleport run on the player's thread (Folia).
+            AsyncHandler.teleport(p, loc).thenRun(() -> AsyncHandler.syncAtEntity(p, new BukkitRunnable() { //Async teleport
                 @Override
                 public void run() {
                     afterTeleport(p, loc, wPlayer, attempts, oldLoc, type);
@@ -64,7 +66,7 @@ public class RTPTeleport {
                         if (BetterRTP.getInstance().getSettings().isRtpOnFirstJoin_SetAsRespawn()) //Save as respawn is enabled
                             p.setBedSpawnLocation(loc, true); //True means to force a respawn even without a valid bed
                 }
-            });
+            }));
         } catch (Exception e) {
             getPl().getPInfo().getRtping().remove(p); //No longer rtp'ing (errored)
             e.printStackTrace();

@@ -65,11 +65,13 @@ public class RTPPlayer {
                 //Load chunk and find out if safe location (asynchronously)
                 AsyncHandler.sync(() -> {
                     try { //Prior to 1.12 this async chunk will NOT work
-                        CompletableFuture<Chunk> chunk = PaperLib.getChunkAtAsync(loc);
-                        chunk.thenAccept(result -> {
+                        CompletableFuture<Chunk> chunk = AsyncHandler.chunkAt(loc);
+                        // Impeerium: the safety search reads the destination's blocks, so it runs on the thread
+                        // that owns them (Folia: the destination region; Paper: the main thread).
+                        chunk.thenAccept(result -> AsyncHandler.syncAtLocation(loc, () -> {
                             //BetterRTP.debug("Checking location for " + p.getName());
                             attempt(sendi, loc);
-                        });
+                        }));
                     } catch (IllegalStateException e) {
                         //Legacy non-async support
                         attempt(sendi, loc);
@@ -92,9 +94,12 @@ public class RTPPlayer {
                 //Successfully found a safe location, set cooldown and teleport player.
                 if (worldPlayer.getPlayerInfo().isApplyCooldown() && HelperRTP_Check.applyCooldown(player))
                     getPl().getCooldowns().add(player, worldPlayer.getWorld());
-                tpLoc.setYaw(player.getLocation().getYaw());
-                tpLoc.setPitch(player.getLocation().getPitch());
-                AsyncHandler.sync(() -> settings.teleport.sendPlayer(sendi, player, tpLoc, worldPlayer, attempts, type));
+                // Impeerium: the player's facing and the teleport belong to the player's own thread on Folia.
+                AsyncHandler.syncAtEntity(player, () -> {
+                    tpLoc.setYaw(player.getLocation().getYaw());
+                    tpLoc.setPitch(player.getLocation().getPitch());
+                    settings.teleport.sendPlayer(sendi, player, tpLoc, worldPlayer, attempts, type);
+                });
             } else {
                 if (worldPlayer.getPlayerInfo().applyCooldown)
                     getPl().getCooldowns().removeCooldown(player, worldPlayer.getWorld());
@@ -108,11 +113,14 @@ public class RTPPlayer {
 
     // Compressed code for MaxAttempts being met
     private void metMax(CommandSender sendi, Player p) {
-        settings.teleport.failedTeleport(p, sendi);
-        getPl().getCooldowns().removeCooldown(p, worldPlayer.getWorld());
-        getPl().getPInfo().getRtping().remove(p);
-        //RTP Failed Event
-        Bukkit.getServer().getPluginManager().callEvent(new RTP_FailedEvent(this));
+        // Impeerium: the last attempt ends on the destination's region on Folia; finish on the player's thread.
+        AsyncHandler.syncAtEntity(p, () -> {
+            settings.teleport.failedTeleport(p, sendi);
+            getPl().getCooldowns().removeCooldown(p, worldPlayer.getWorld());
+            getPl().getPInfo().getRtping().remove(p);
+            //RTP Failed Event
+            Bukkit.getServer().getPluginManager().callEvent(new RTP_FailedEvent(this));
+        });
     }
 
     /**
